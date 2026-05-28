@@ -286,9 +286,14 @@ export function createPromptSubmit(input: PromptSubmitInput) {
     })
   }
 
+  let isSubmitting = false
+
   const handleSubmit = async (event: Event) => {
     event.preventDefault()
+    if (isSubmitting) return
+    isSubmitting = true
 
+    try {
     const currentPrompt = prompt.current()
     const text = currentPrompt.map((part) => ("content" in part ? part.content : "")).join("")
     const images = input.imageAttachments().slice()
@@ -575,6 +580,9 @@ export function createPromptSubmit(input: PromptSubmitInput) {
       restoreCommentItems(commentItems)
       restoreInput()
     })
+    } finally {
+      isSubmitting = false
+    }
   }
 
   return {
