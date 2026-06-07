@@ -459,6 +459,62 @@ noLLMServer.instance(
     }),
   { config: cfg },
 )
+noLLMServer.instance(
+  "loop exits by parent relation when client message id sorts after assistant id",
+  () =>
+    Effect.gen(function* () {
+      const prompt = yield* SessionPrompt.Service
+      const sessions = yield* Session.Service
+      const chat = yield* sessions.create({ title: "Cross-device IDs" })
+      const userID = MessageID.make("msg_user_zzzz")
+      const assistantID = MessageID.make("msg_assistant_aaaa")
+
+      yield* sessions.updateMessage({
+        id: userID,
+        role: "user",
+        sessionID: chat.id,
+        agent: "build",
+        model: ref,
+        time: { created: Date.now() },
+      })
+      yield* sessions.updatePart({
+        id: PartID.ascending(),
+        messageID: userID,
+        sessionID: chat.id,
+        type: "text",
+        text: "hello from mobile",
+      })
+      yield* sessions.updateMessage({
+        id: assistantID,
+        role: "assistant",
+        parentID: userID,
+        sessionID: chat.id,
+        mode: "build",
+        agent: "build",
+        cost: 0,
+        path: { cwd: "/tmp", root: "/tmp" },
+        tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+        modelID: ref.modelID,
+        providerID: ref.providerID,
+        time: { created: Date.now() },
+        finish: "stop",
+      })
+      yield* sessions.updatePart({
+        id: PartID.ascending(),
+        messageID: assistantID,
+        sessionID: chat.id,
+        type: "text",
+        text: "done",
+      })
+
+      const result = yield* prompt.loop({ sessionID: chat.id })
+      const messages = yield* sessions.messages({ sessionID: chat.id })
+      expect(result.info.id).toBe(assistantID)
+      expect(messages.filter((message) => message.info.role === "assistant")).toHaveLength(1)
+    }),
+  { config: cfg },
+)
+
 
 it.instance("loop exits without an LLM request for interrupted orphan tool calls", () =>
   Effect.gen(function* () {
